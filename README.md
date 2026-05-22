@@ -1,4 +1,4 @@
-# AI Content Detection System — Full Stack Project
+# AI Content Detection System — Full-Stack Project
 ### Final Year Project | AI-Based Detection of AI-Generated Content
 
 Detects AI-generated **Text**, **Images**, and **Code** using:
