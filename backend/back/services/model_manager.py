@@ -207,6 +207,13 @@ class ModelManager:
     # ─────────────────────────────────────────────────────────
     @staticmethod
     async def predict_image(image_bytes: bytes, mime_type: str = "image/jpeg") -> dict:
+        if settings.sightengine_api_user and settings.sightengine_api_secret:
+            try:
+                raw, model_name = await ModelManager._sightengine_api_image(image_bytes)
+                return ModelManager._parse_sightengine_scores(raw, model_name)
+            except Exception as e:
+                log.error(f"Sightengine API failed, falling back to HF image models: {e}")
+
         if settings.inference_mode == "local" and _image_model:
             loop = asyncio.get_event_loop()
             raw = await loop.run_in_executor(None, _image_model.predict, image_bytes)
@@ -305,6 +312,30 @@ class ModelManager:
         return [{"label": "artificial", "score": 0.5}, {"label": "real", "score": 0.5}], model
 
     @staticmethod
+    async def _sightengine_api_image(image_bytes: bytes) -> tuple[dict, str]:
+        """Calls Sightengine's AI detection API."""
+        model = "Sightengine AI/GenAI Detector"
+        async with aiohttp.ClientSession() as session:
+            # Prepare multipart form data
+            data = aiohttp.FormData()
+            data.add_field('models', 'genai')
+            data.add_field('api_user', settings.sightengine_api_user)
+            data.add_field('api_secret', settings.sightengine_api_secret)
+            data.add_field('media', image_bytes, filename='image.jpg', content_type='image/jpeg')
+
+            async with session.post(
+                "https://api.sightengine.com/1.0/check.json",
+                data=data,
+                timeout=aiohttp.ClientTimeout(total=40)
+            ) as resp:
+                if resp.status == 200:
+                    response_data = await resp.json()
+                    return response_data, model
+                else:
+                    text = await resp.text()
+                    raise Exception(f"Sightengine API error: {resp.status} - {text}")
+
+    @staticmethod
     async def _hf_api_code(code: str) -> tuple[list, str]:
         """Same as text but uses code model."""
         model = settings.code_model_name
@@ -384,6 +415,34 @@ class ModelManager:
             "ai_score": round(ai_score * 100),
             "human_score": round(human_score * 100),
             "raw_scores": raw,
+            "model": model_name,
+        }
+
+    @staticmethod
+    def _parse_sightengine_scores(raw: dict, model_name: str) -> dict:
+        """Parses the Sightengine genai model response."""
+        ai_score = 0.5
+        human_score = 0.5
+        raw_list = []
+
+        if "type" in raw and "genai" in raw.get("type", {}):
+            ai_score = raw["type"]["genai"]
+            human_score = 1.0 - ai_score
+            raw_list.append({"label": "ai_generated", "score": ai_score})
+            raw_list.append({"label": "human_created", "score": human_score})
+            
+            # Extract specific generator if available
+            if "genai_generators" in raw["type"]:
+                for generator, score in raw["type"]["genai_generators"].items():
+                    if score > 0:
+                        raw_list.append({"label": f"generator_{generator}", "score": score})
+        else:
+            raw_list = [{"label": "unknown", "score": 0.5}]
+
+        return {
+            "ai_score": round(ai_score * 100),
+            "human_score": round(human_score * 100),
+            "raw_scores": raw_list,
             "model": model_name,
         }
 

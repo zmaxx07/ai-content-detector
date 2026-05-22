@@ -10,17 +10,20 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # ── API Keys ───────────────────────────────────────────────
     huggingface_token: str = ""         # hf_xxxxx  (required for HF Inference API)
+    gemini_api_key: str = ""            # optional
     newsapi_key: str = ""               # optional
     anthropic_api_key: str = ""         # optional — for Claude enrichment
+    sightengine_api_user: str = ""      # optional — for Sightengine premium image detection
+    sightengine_api_secret: str = ""    # optional — for Sightengine premium image detection
 
     # ── Model Selection ────────────────────────────────────────
     # Text: fine-tuned RoBERTa on GPT-2 Output Dataset (500k docs)
-    text_model_name: str = "roberta-base-openai-detector"
-    text_model_fallback: str = "Hello-SimpleAI/chatgpt-detector-roberta"
+    text_model_name: str = "Hello-SimpleAI/chatgpt-detector-roberta"
+    text_model_fallback: str = "roberta-base-openai-detector"
 
-    # Image: ViT fine-tuned on CIFAKE / SDXL-detector
-    image_model_name: str = "Organika/sdxl-detector"
-    image_model_fallback: str = "umm-maybe/AI-image-detector"
+    # Image: ViT fine-tuned on AI datasets
+    image_model_name: str = "capcheck/ai-image-detection"
+    image_model_fallback: str = "Smogy/SMOGY-Ai-images-detector"
 
     # Code: RoBERTa (works well for code authorship)
     code_model_name: str = "roberta-base-openai-detector"
@@ -28,7 +31,7 @@ class Settings(BaseSettings):
     # ── Inference Mode ─────────────────────────────────────────
     # "local"  → download & run models locally (GPU/CPU)
     # "api"    → use Hugging Face Inference API (cloud, needs HF token)
-    inference_mode: str = "api"         # "local" | "api"
+    inference_mode: str = "local"         # "local" | "api"
 
     # ── Local Model Settings ───────────────────────────────────
     device: str = "auto"                # "cpu" | "cuda" | "mps" | "auto"

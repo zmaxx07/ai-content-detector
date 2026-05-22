@@ -46,7 +46,7 @@ echo Press Ctrl+C in each window to stop
 echo.
 
 REM Start backend in new window
-START "AI Detector Backend" /D "%BACKEND%" cmd /k "venv\Scripts\activate.bat && python run.py --mode api"
+START "AI Detector Backend" /D "%BACKEND%" cmd /k "venv\Scripts\activate.bat && python run.py"
 
 REM Start frontend in new window
 START "AI Detector Frontend" /D "%FRONTEND%" cmd /k "set BROWSER=none && npm start"

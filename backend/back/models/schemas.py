@@ -52,6 +52,12 @@ class LinguisticFeatures(BaseModel):
     punctuation_score: float
     paragraph_count: int
     avg_paragraph_length: float
+    perplexity: float = 0.0
+    burstiness: float = 0.0
+    gunning_fog: float = 0.0
+    function_word_density: float = 0.0
+    punctuation_entropy: float = 0.0
+    ngram_repetition: float = 0.0
 
 
 # ── Text ──────────────────────────────────────────────────────
@@ -119,7 +125,7 @@ class CodeDetectResponse(BaseModel):
 
 class SourcesResponse(BaseModel):
     topic: str
-    samples: List[HumanSample]
+    samples: list[HumanSample]
     total_fetched: int
     sources_used: list[str]
     fetch_time_ms: int

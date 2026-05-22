@@ -1,4 +1,62 @@
+# Dependency directories
 node_modules/
 .npm-cache/
-"node_modules/" 
-".npm-cache/" 
+jspm_packages/
+web_modules/
+
+# Python Virtual Environments
+myenv/
+venv/
+.venv/
+env/
+ENV/
+backend/venv/
+backend/myenv/
+
+# Python caching & bytecode
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.lib/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables (contains API keys/secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+backend/.env
+frontend/.env
+
+# IDE / Editor folders
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary / Accidental directories
+f/
+{backend/
+
+# Operating system files
+.DS_Store
+Thumbs.db

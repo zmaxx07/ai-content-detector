@@ -16,14 +16,100 @@ Features extracted:
   - Named entity proxy (capitalized words)
   - Readability proxy
 """
-
 from __future__ import annotations
 
 import re
+import math
+from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional
 
+import torch
+from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
 from models.schemas import DetectionSignal, LinguisticFeatures
+
+# Load lightweight GPT-2 for perplexity (Optional: load lazily to save RAM)
+tokenizer = None
+model = None
+_gpt2_loaded = False
+
+def _load_gpt2_lazily():
+    global tokenizer, model, _gpt2_loaded
+    if _gpt2_loaded:
+        return
+    _gpt2_loaded = True
+    try:
+        from transformers import GPT2LMHeadModel, GPT2Tokenizer
+        tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        model = GPT2LMHeadModel.from_pretrained("gpt2")
+        model.eval()
+    except Exception:
+        tokenizer = None
+        model = None
+
+def calculate_perplexity(text: str) -> float:
+    _load_gpt2_lazily()
+    if model is None or tokenizer is None: return 0.0
+    encodings = tokenizer(text, return_tensors="pt")
+    if len(encodings.input_ids) == 0: return 0.0
+    max_length = model.config.n_positions
+    stride = 512
+    seq_len = encodings.input_ids.size(1)
+
+    nlls = []
+    prev_end_loc = 0
+    for begin_loc in range(0, seq_len, stride):
+        end_loc = min(begin_loc + max_length, seq_len)
+        trg_len = end_loc - prev_end_loc
+        input_ids = encodings.input_ids[:, begin_loc:end_loc]
+        target_ids = input_ids.clone()
+        target_ids[:, :-trg_len] = -100
+
+        with torch.no_grad():
+            outputs = model(input_ids, labels=target_ids)
+            neg_log_likelihood = outputs.loss * trg_len
+
+        nlls.append(neg_log_likelihood)
+        prev_end_loc = end_loc
+        if end_loc == seq_len:
+            break
+            
+    if not nlls: return 0.0
+    ppl = torch.exp(torch.stack(nlls).sum() / end_loc)
+    return ppl.item()
+
+def calculate_burstiness(sentence_lengths: list) -> float:
+    if not sentence_lengths or len(sentence_lengths) < 2: return 0.0
+    mean = sum(sentence_lengths) / len(sentence_lengths)
+    variance = sum((x - mean) ** 2 for x in sentence_lengths) / len(sentence_lengths)
+    std_dev = math.sqrt(variance)
+    return std_dev / mean if mean > 0 else 0.0
+
+def calculate_gunning_fog(words: list, sent_count: int) -> float:
+    complex_words = [w for w in words if len(re.findall(r'[aeiouy]+', w, re.I)) >= 3]
+    if not words or sent_count == 0: return 0.0
+    return 0.4 * ((len(words) / sent_count) + 100 * (len(complex_words) / len(words)))
+
+def calculate_function_word_density(words: list) -> float:
+    func_words = {"the", "is", "are", "of", "and", "a", "an", "to", "in", "that", "it"}
+    count = sum(1 for w in words if w.lower() in func_words)
+    return count / len(words) if words else 0.0
+
+def calculate_punctuation_entropy(text: str) -> float:
+    puncts = re.findall(r'[.,;:!?]', text)
+    if not puncts: return 0.0
+    counts = Counter(puncts)
+    total = len(puncts)
+    entropy = -sum((c/total) * math.log2(c/total) for c in counts.values())
+    return entropy
+
+def calculate_ngram_repetition(words: list, n: int = 3) -> float:
+    if len(words) < n: return 0.0
+    ngrams = [" ".join(words[i:i+n]) for i in range(len(words)-n+1)]
+    unique_ngrams = set(ngrams)
+    return 1.0 - (len(unique_ngrams) / len(ngrams))
+
 
 
 # ── AI phrase patterns (commonly over-used by LLMs) ───────────
@@ -98,6 +184,13 @@ def analyze(text: str) -> AnalysisResult:
     punct_chars = re.findall(r"[.,;:!?]", text)
     punct_score = round(len(punct_chars) / max(word_count, 1), 3)
 
+    perplexity = calculate_perplexity(text)
+    burstiness = calculate_burstiness(sent_lengths)
+    fog_index = calculate_gunning_fog(words, sent_count)
+    func_density = calculate_function_word_density(words)
+    punct_entropy = calculate_punctuation_entropy(text)
+    ngram_rep = calculate_ngram_repetition(words)
+
     features = LinguisticFeatures(
         word_count=word_count,
         unique_words=unique_count,
@@ -109,6 +202,12 @@ def analyze(text: str) -> AnalysisResult:
         punctuation_score=punct_score,
         paragraph_count=para_count,
         avg_paragraph_length=avg_para_len,
+        perplexity=perplexity,
+        burstiness=burstiness,
+        gunning_fog=fog_index,
+        function_word_density=func_density,
+        punctuation_entropy=punct_entropy,
+        ngram_repetition=ngram_rep,
     )
 
     # ── Build signals list ────────────────────────────────────

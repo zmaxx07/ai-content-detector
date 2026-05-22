@@ -9,6 +9,8 @@ import logging
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "back"))
+
 import uvicorn
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s │ %(message)s", datefmt="%H:%M:%S")
@@ -31,7 +33,7 @@ def main():
     if args.host:
         os.environ["HOST"] = args.host
 
-    from app.config import get_settings
+    from config import get_settings
     cfg = get_settings()
 
     log.info("=" * 60)
@@ -52,7 +54,7 @@ def main():
         log.warning("   Then add it to .env: HUGGINGFACE_TOKEN=hf_xxxx")
 
     uvicorn.run(
-        "app.main:app",
+        "main:app",
         host=cfg.host,
         port=cfg.port,
         log_level=cfg.log_level,

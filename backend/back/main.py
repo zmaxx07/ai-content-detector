@@ -18,12 +18,17 @@ import time
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
+import json
+import redis
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-from routers import text, image, code, health, sources
+from routers import text, image, code, health, sources, metrics
 from services.model_manager import ModelManager
 
 load_dotenv()
@@ -58,16 +63,33 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Redis Cache setup
+redis_client = redis.Redis(host='localhost', port=6379, db=0)
+
 # ── Middleware ─────────────────────────────────────────────────
+import os
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # lock down in production
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    start_time = time.time()
+    response = await call_next(request)
+    process_time = time.time() - start_time
+    response.headers["X-Process-Time"] = str(process_time)
+    return response
 
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(health.router,   prefix="/api/v1", tags=["Health"])
@@ -75,6 +97,7 @@ app.include_router(text.router,     prefix="/api/v1", tags=["Text Detection"])
 app.include_router(image.router,    prefix="/api/v1", tags=["Image Detection"])
 app.include_router(code.router,     prefix="/api/v1", tags=["Code Detection"])
 app.include_router(sources.router,  prefix="/api/v1", tags=["Human Sources"])
+app.include_router(metrics.router,  prefix="/api/v1", tags=["Metrics & Evaluation"])
 
 
 # ── Global error handler ──────────────────────────────────────
@@ -87,6 +110,32 @@ async def global_exception_handler(request, exc):
     )
 
 
+@app.post("/api/v1/detect/batch", tags=["Batch Detection"])
+@limiter.limit("60/minute")
+async def detect_batch(request: Request, texts: list[str]):
+    if len(texts) > 50:
+        return JSONResponse({"error": "Max 50 texts per batch"}, status_code=400)
+    
+    results = []
+    for t in texts:
+        cache_key = f"detect:{hash(t)}"
+        try:
+            cached = redis_client.get(cache_key)
+            if cached:
+                results.append(json.loads(cached))
+                continue
+        except redis.ConnectionError:
+            pass # ignore redis if offline
+            
+        # mock processing fallback
+        res = {"text": t[:10], "score": 0.8}
+        try:
+            redis_client.setex(cache_key, 3600, json.dumps(res))
+        except redis.ConnectionError:
+            pass
+        results.append(res)
+    return {"results": results}
+
 @app.get("/", tags=["Root"])
 async def root():
     return {
@@ -96,7 +145,9 @@ async def root():
             "text_detect":   "POST /api/v1/detect/text",
             "image_detect":  "POST /api/v1/detect/image",
             "code_detect":   "POST /api/v1/detect/code",
+            "batch_detect":  "POST /api/v1/detect/batch",
             "fetch_sources": "GET  /api/v1/sources/human-text?topic=<topic>",
+            "evaluate":      "POST /api/v1/evaluate",
             "health":        "GET  /api/v1/health",
             "docs":          "GET  /docs",
         },
