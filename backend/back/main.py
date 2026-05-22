@@ -12,6 +12,13 @@ External data sources fetched live:
   • NewsAPI.org          (journalist articles)
   • Quotable API         (human quotes)
 """
+import os
+import sys
+
+# Ensure the 'back' directory is in the Python path so that absolute imports
+# of sibling packages (routers, services, config) work correctly when run from
+# the parent/root directory (e.g. on Render)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import logging
 import time

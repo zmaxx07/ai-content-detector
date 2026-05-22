@@ -38,7 +38,7 @@ def get_user(uid):
     return u[0]  # first row only
 """
 
-AI_CODE = """
+AI_CODE = '''
 def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     """
     Retrieves a user from the database by their unique identifier.
@@ -71,7 +71,7 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Unexpected error retrieving user {user_id}: {e}")
         raise
-"""
+'''
 
 
 # ── Client fixture ─────────────────────────────────────────────
@@ -82,7 +82,7 @@ def client():
     os.environ["INFERENCE_MODE"] = "api"
     os.environ["HUGGINGFACE_TOKEN"] = ""  # tests use mocked responses
 
-    from app.main import app
+    from back.main import app
     from unittest.mock import patch, AsyncMock
 
     mock_ml = AsyncMock(return_value={
@@ -92,10 +92,10 @@ def client():
     })
     mock_sources = AsyncMock(return_value=[])
 
-    with patch("app.services.model_manager.ModelManager.load_all", AsyncMock()), \
-         patch("app.services.model_manager.ModelManager.predict_text", mock_ml), \
-         patch("app.services.model_manager.ModelManager.predict_code", mock_ml), \
-         patch("app.services.source_fetcher.fetch_human_samples", mock_sources):
+    with patch("back.services.model_manager.ModelManager.load_all", AsyncMock()), \
+         patch("back.services.model_manager.ModelManager.predict_text", mock_ml), \
+         patch("back.services.model_manager.ModelManager.predict_code", mock_ml), \
+         patch("back.services.source_fetcher.fetch_human_samples", mock_sources):
         with TestClient(app) as c:
             yield c
 
@@ -176,7 +176,7 @@ def test_code_detect_human_code(client):
 
 
 def test_code_detect_language(client):
-    python_code = "def hello():\n    print('world')\n\nhello()"
+    python_code = "# python code\ndef hello():\n    print('world')\n\nhello()"
     r = client.post("/api/v1/detect/code", json={"code": python_code})
     assert r.status_code == 200
     data = r.json()
