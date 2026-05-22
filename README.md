@@ -14,7 +14,7 @@ Detects AI-generated **Text**, **Images**, and **Code** using:
 ```
 ai_detector_project/
 ├── backend/                    ← Python FastAPI server
-│   ├── app/
+│   ├── back/
 │   │   ├── main.py             ← FastAPI app entry point
 │   │   ├── config.py           ← Settings (reads .env)
 │   │   ├── models/schemas.py   ← Pydantic request/response types
@@ -123,13 +123,20 @@ cd frontend
 npm start
 ```
 
+**Option D: Docker Compose (All-in-one)**
+Build and run the Backend, React Frontend, and Redis Cache simultaneously in containers:
+```bash
+docker-compose up --build
+```
+
 ---
 
 ### Step 5 — Open in Browser
 
 | URL | What |
 |-----|------|
-| http://localhost:3000 | React Frontend (use this) |
+| http://localhost:3000 | React Frontend (Option A, B, C) |
+| http://localhost:80 (or http://localhost) | React Frontend (Option D - Docker Compose) |
 | http://localhost:8000/docs | FastAPI Swagger API Docs |
 | http://localhost:8000/api/v1/health | Health check JSON |
 
