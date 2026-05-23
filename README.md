@@ -1,5 +1,5 @@
 # AI Content Detection System — Full-Stack Project
-### Final Year Project | AI-Based Detection of AI-Generated Content
+AI-Based Detection of AI-Generated Content
 
 Detects AI-generated **Text**, **Images**, and **Code** using:
 - 🤗 **HuggingFace ML Models** (RoBERTa, SDXL-Detector) via Inference API
